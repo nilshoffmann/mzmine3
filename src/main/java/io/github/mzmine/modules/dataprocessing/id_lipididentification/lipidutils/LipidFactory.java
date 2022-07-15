@@ -26,6 +26,9 @@ import io.github.mzmine.modules.dataprocessing.id_lipididentification.lipids.Mol
 import io.github.mzmine.modules.dataprocessing.id_lipididentification.lipids.SpeciesLevelAnnotation;
 import io.github.mzmine.modules.dataprocessing.id_lipididentification.lipids.lipidchain.ILipidChain;
 import io.github.mzmine.util.FormulaUtils;
+import org.lifstools.jgoslin.domain.Headgroup;
+import org.lifstools.jgoslin.domain.KnownFunctionalGroups;
+import org.lifstools.jgoslin.domain.LipidSpecies;
 
 public class LipidFactory {
 
@@ -50,6 +53,9 @@ public class LipidFactory {
         }
       }
     }
+    String classString = Headgroup.getClassString(Headgroup.getClass(lipidClass.getAbbr()));
+    Headgroup hg = new Headgroup(classString);
+    LipidSpecies ls = new LipidSpecies(hg, new KnownFunctionalGroups());
     if (hasAlkylChain) {
       annotation = lipidClass.getAbbr() + " O-" + numberOfCarbons + ':' + numberOfDBEs;
     } else if (hasNoChain) {
