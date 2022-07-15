@@ -86,6 +86,7 @@ ext {
     batikVersion = '1.14'
     controlsfxVersion = '11.1.1'
     jmzTabmVersion = "1.0.6"
+    jgoslinVersion = "2.0.2"
     jnaVersion = '5.9.0'
     junitversion = '5.8.2'
     mockitoversion = '4.2.0'
@@ -185,6 +186,7 @@ dependencies {
     implementation "com.github.oshi:oshi-core:4.5.2"
     // because the version that is pulled by SIRIUS crashes
     implementation "de.isas.mztab:jmztabm-io:$jmzTabmVersion"
+    implementation "org.lifs-tools:jgoslin-parsers:$jgoslinVersion"
     implementation 'net.java.dev.jna:jna:$jnaVersion'
     implementation "com.alanmrace:jimzmlparser:1.0.5"
     implementation group: 'commons-cli', name: 'commons-cli', version: '1.4'

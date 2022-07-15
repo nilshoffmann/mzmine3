@@ -26,12 +26,16 @@ import org.openscience.cdk.interfaces.IMolecularFormula;
 import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
 import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
 import io.github.mzmine.modules.dataprocessing.id_lipididentification.lipids.LipidClasses;
+import io.github.mzmine.modules.dataprocessing.id_lipididentification.lipids.SpeciesLevelAnnotation;
 import io.github.mzmine.modules.dataprocessing.id_lipididentification.lipidutils.LipidFactory;
 import io.github.mzmine.util.FormulaUtils;
+import org.lifstools.jgoslin.domain.LipidAdduct;
+import org.lifstools.jgoslin.parser.LipidParser;
 
 class LipidMsOneLevelTest {
 
   private static final LipidFactory LIPID_FACTORY = new LipidFactory();
+  private static final LipidParser LIPID_PARSER = new LipidParser();
   private static final NumberFormat NUMBER_FORMAT = new DecimalFormat("#.#####");
 
   @Test
@@ -354,9 +358,12 @@ class LipidMsOneLevelTest {
   @Test
   void molecularFormulaLevelTestLPG() {
     Double EXACT_MASS_LPG_18_1 = FormulaUtils.calculateExactMass("C24H47O9P");
-    IMolecularFormula testSpeciesLPG =
-        LIPID_FACTORY.buildSpeciesLevelLipid(LipidClasses.MONOACYLGLYCEROPHOSPHOGLYCEROLS, 18, 1)
-            .getMolecularFormula();
+    SpeciesLevelAnnotation sla = LIPID_FACTORY.buildSpeciesLevelLipid(LipidClasses.MONOACYLGLYCEROPHOSPHOGLYCEROLS, 18, 1);
+    IMolecularFormula testSpeciesLPG = sla.getMolecularFormula();
+    String annotation = sla.getAnnotation();
+    LipidAdduct la = LIPID_PARSER.parse(annotation);
+    assertEquals(NUMBER_FORMAT.format(EXACT_MASS_LPG_18_1),
+        NUMBER_FORMAT.format(la.getMass()));
     assertEquals(NUMBER_FORMAT.format(EXACT_MASS_LPG_18_1),
         NUMBER_FORMAT.format(MolecularFormulaManipulator.getMass(testSpeciesLPG,
             AtomContainerManipulator.MonoIsotopic)));
