@@ -1,19 +1,26 @@
 /*
- * Copyright 2006-2022 The MZmine Development Team
+ * Copyright (c) 2004-2022 The MZmine Development Team
  *
- * This file is part of MZmine.
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
  *
- * MZmine is free software; you can redistribute it and/or modify it under the terms of the GNU
- * General Public License as published by the Free Software Foundation; either version 2 of the
- * License, or (at your option) any later version.
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
  *
- * MZmine is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
- * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License along with MZmine; if not,
- * write to the Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
- *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
  */
 
 package io.github.mzmine.gui;
@@ -40,8 +47,6 @@ import io.github.mzmine.modules.io.import_rawdata_all.AllSpectralDataImportParam
 import io.github.mzmine.modules.io.import_spectral_library.SpectralLibraryImportParameters;
 import io.github.mzmine.modules.io.projectload.ProjectLoadModule;
 import io.github.mzmine.parameters.ParameterSet;
-import io.github.mzmine.project.ProjectManager;
-import io.github.mzmine.project.impl.MZmineProjectImpl;
 import io.github.mzmine.project.impl.ProjectChangeEvent;
 import io.github.mzmine.project.impl.ProjectChangeListener;
 import io.github.mzmine.taskcontrol.Task;
@@ -62,6 +67,7 @@ import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.function.Consumer;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import javafx.application.Application;
@@ -91,16 +97,20 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
 import javafx.stage.Window;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
+import org.controlsfx.control.NotificationPane;
 import org.controlsfx.control.StatusBar;
+import org.controlsfx.control.action.Action;
 import org.jetbrains.annotations.NotNull;
+import org.kordamp.ikonli.javafx.FontIcon;
 
 /**
  * MZmine JavaFX Application class
  */
 public class MZmineGUI extends Application implements Desktop {
 
-  public static final int MAX_TABS = 7;
+  public static final int MAX_TABS = 30;
   private static final Image mzMineIcon = FxIconUtil.loadImageFromResources("MZmineIcon.png");
   private static final String mzMineFXML = "mainwindow/MainWindow.fxml";
   private static final Logger logger = Logger.getLogger(MZmineGUI.class.getName());
@@ -114,6 +124,8 @@ public class MZmineGUI extends Application implements Desktop {
     MZmineCore.runLater(() -> {
       Alert alert = new Alert(AlertType.CONFIRMATION);
       Stage stage = (Stage) alert.getDialogPane().getScene().getWindow();
+      stage.getScene().getStylesheets()
+          .addAll(MZmineCore.getDesktop().getMainWindow().getScene().getStylesheets());
       stage.getIcons().add(mzMineIcon);
       alert.setTitle("Confirmation");
       alert.setHeaderText("Exit MZmine");
@@ -135,6 +147,8 @@ public class MZmineGUI extends Application implements Desktop {
     MZmineCore.runLater(() -> {
       Alert alert = new Alert(AlertType.CONFIRMATION);
       Stage stage = (Stage) alert.getDialogPane().getScene().getWindow();
+      stage.getScene().getStylesheets()
+          .addAll(MZmineCore.getDesktop().getMainWindow().getScene().getStylesheets());
       stage.getIcons().add(mzMineIcon);
       alert.setTitle("Confirmation");
       alert.setHeaderText("Close project");
@@ -146,12 +160,8 @@ public class MZmineGUI extends Application implements Desktop {
         // Close all windows related to previous project
         GUIUtils.closeAllWindows();
 
-        // Create a new, empty project
-        MZmineProject newProject = new MZmineProjectImpl();
-
-        // Replace the current project with the new one
-        ProjectManager projectManager = MZmineCore.getProjectManager();
-        projectManager.setCurrentProject(newProject);
+        // Set a new project clears the old
+        MZmineCore.getProjectManager().clearProject();
 
         MZmineCore.getDesktop().setStatusBarText("Project space cleaned");
 
@@ -178,7 +188,7 @@ public class MZmineGUI extends Application implements Desktop {
     return newStage;
   }
 
-  public static void activateProject(MZmineProject project) {
+  public static void activateProject(@NotNull MZmineProject project) {
 
     MZmineCore.runLater(() -> {
 
@@ -377,6 +387,46 @@ public class MZmineGUI extends Application implements Desktop {
     }
   }
 
+  public static void handleTaskManagerLocationChange(WindowLocation loc) {
+    if (Objects.equals(loc, currentTaskManagerLocation)) {
+      return;
+    }
+
+    String title = "Tasks";
+    TableView<WrappedTask> tasksView = mainWindowController.getTasksView();
+
+    // remove
+    switch (currentTaskManagerLocation) {
+      case TAB -> mainWindowController.removeTab(title);
+      case MAIN -> removeTasksFromBottom();
+      case HIDDEN -> {
+      }
+      case EXTERNAL -> {
+        if (currentTaskWindow != null) {
+          currentTaskWindow.close();
+          currentTaskWindow = null;
+        }
+      }
+    }
+
+    // add
+    switch (loc) {
+      case TAB -> {
+        MZmineTab tab = new SimpleTab(title);
+        tab.setContent(tasksView);
+        MZmineCore.getDesktop().addTab(tab);
+      }
+      case EXTERNAL -> {
+        currentTaskWindow = addWindow(tasksView, title);
+      }
+      case MAIN -> addTasksToBottom();
+      case HIDDEN -> {
+      }
+    }
+
+    currentTaskManagerLocation = loc;
+  }
+
   @Override
   public void start(Stage stage) {
 
@@ -385,6 +435,7 @@ public class MZmineGUI extends Application implements Desktop {
 
     logger.finest("Initializing MZmine main window");
 
+    MZminePreferences preferences = MZmineCore.getConfiguration().getPreferences();
     try {
       // Load the main window
       URL mainFXML = this.getClass().getResource(mzMineFXML);
@@ -393,18 +444,7 @@ public class MZmineGUI extends Application implements Desktop {
       rootScene = loader.load();
       mainWindowController = loader.getController();
       stage.setScene(rootScene);
-      rootScene.getStylesheets()
-          .add(getClass().getResource("/themes/MZmine_light.css").toExternalForm());
-
-      Boolean darkMode = MZmineCore.getConfiguration().getPreferences()
-          .getParameter(MZminePreferences.darkMode).getValue();
-      if (darkMode != null && darkMode == true) {
-        rootScene.getStylesheets()
-            .add(getClass().getResource("/themes/MZmine_dark.css").toExternalForm());
-      } else {
-        rootScene.getStylesheets()
-            .add(getClass().getResource("/themes/MZmine_light.css").toExternalForm());
-      }
+      preferences.getValue(MZminePreferences.theme).apply(rootScene.getStylesheets());
 
     } catch (Exception e) {
       e.printStackTrace();
@@ -441,6 +481,19 @@ public class MZmineGUI extends Application implements Desktop {
 
     stage.show();
 
+    // show message that temp folder should be setup
+    if (preferences.getValue(MZminePreferences.showTempFolderAlert)) {
+      File tmpPath = preferences.getValue(MZminePreferences.tempDirectory);
+      File userDir = FileUtils.getUserDirectory();
+      if (tmpPath == null || !tmpPath.exists() || tmpPath.getAbsolutePath().toLowerCase()
+          .contains("users") || tmpPath.equals(userDir)) {
+        MZmineCore.runLater(() -> displayNotification("""
+                Set temp folder to a fast local drive (prefer a public folder over a user folder).
+                MZmine stores data on disk. Ensure enough free space. Otherwise change the memory options.
+                """, "Change", MZmineCore::openTempPreferences,
+            () -> preferences.setParameter(MZminePreferences.showTempFolderAlert, false)));
+      }
+    }
     // update the size and position of the main window
     /*
      * ParameterSet paramSet = configuration.getPreferences(); WindowSettingsParameter settings =
@@ -457,9 +510,7 @@ public class MZmineGUI extends Application implements Desktop {
      */
 
     // Activate project - bind it to the desktop's project tree
-    MZmineProjectImpl currentProject = (MZmineProjectImpl) MZmineCore.getProjectManager()
-        .getCurrentProject();
-    MZmineGUI.activateProject(currentProject);
+    MZmineGUI.activateProject(MZmineCore.getProject());
 
     // Check for updated version
     NewVersionCheck NVC = new NewVersionCheck(CheckType.DESKTOP);
@@ -468,11 +519,7 @@ public class MZmineGUI extends Application implements Desktop {
     nvcThread.start();
 
     // Tracker
-    GoogleAnalyticsTracker GAT = new GoogleAnalyticsTracker("MZmine Loaded (GUI mode)",
-        "/JAVA/Main/GUI");
-    Thread gatThread = new Thread(GAT);
-    gatThread.setPriority(Thread.MIN_PRIORITY);
-    gatThread.start();
+    GoogleAnalyticsTracker.track("MZmine Loaded (GUI mode)", "/JAVA/Main/GUI");
 
     // register shutdown hook only if we have GUI - we don't want to
     // save configuration on exit if we only run a batch
@@ -482,7 +529,7 @@ public class MZmineGUI extends Application implements Desktop {
   }
 
   @Override
-  public String getName() {
+  public @NotNull String getName() {
     return "MZmine desktop";
   }
 
@@ -568,7 +615,8 @@ public class MZmineGUI extends Application implements Desktop {
       dialog.getDialogPane().getButtonTypes().add(ButtonType.OK);
 
       final Text text = new Text();
-      text.getStyleClass().add("text-id");
+//      text.getStyleClass().add("label");
+//      text.getStyleClass().add("text-id");
 
       text.setWrappingWidth(400);
       text.setText(msg);
@@ -619,6 +667,33 @@ public class MZmineGUI extends Application implements Desktop {
       e.printStackTrace();
       return null;
     }
+  }
+
+  @Override
+  public void displayNotification(String msg, String buttonText, Runnable action,
+      Runnable hideForeverAction) {
+    logger.log(Level.INFO, msg);
+    NotificationPane pane = mainWindowController.getNotificationPane();
+    pane.getActions().clear();
+    if (hideForeverAction != null) {
+      pane.getActions().add(new Action("Hide ∞", ae -> {
+        hideForeverAction.run();
+        pane.hide();
+      }));
+    }
+
+    Action buttonAction = new Action(buttonText, ae -> {
+      action.run();
+      pane.hide();
+    });
+    FontIcon fontIcon = null;
+    try {
+      fontIcon = new FontIcon("bi-exclamation-triangle:30");
+      fontIcon.setOnMouseClicked(event -> buttonAction.handle(null));
+    } catch (Exception ex) {
+      logger.log(Level.WARNING, "Cannot load icon from Ikonli" + ex.getMessage(), ex);
+    }
+    pane.show(msg, fontIcon, buttonAction);
   }
 
   @Override
@@ -743,46 +818,5 @@ public class MZmineGUI extends Application implements Desktop {
       e.printStackTrace();
     }
     return ButtonType.NO;
-  }
-
-
-  public static void handleTaskManagerLocationChange(WindowLocation loc) {
-    if (Objects.equals(loc, currentTaskManagerLocation)) {
-      return;
-    }
-
-    String title = "Tasks";
-    TableView<WrappedTask> tasksView = mainWindowController.getTasksView();
-
-    // remove
-    switch (currentTaskManagerLocation) {
-      case TAB -> mainWindowController.removeTab(title);
-      case MAIN -> removeTasksFromBottom();
-      case HIDDEN -> {
-      }
-      case EXTERNAL -> {
-        if (currentTaskWindow != null) {
-          currentTaskWindow.close();
-          currentTaskWindow = null;
-        }
-      }
-    }
-
-    // add
-    switch (loc) {
-      case TAB -> {
-        MZmineTab tab = new SimpleTab(title);
-        tab.setContent(tasksView);
-        MZmineCore.getDesktop().addTab(tab);
-      }
-      case EXTERNAL -> {
-        currentTaskWindow = addWindow(tasksView, title);
-      }
-      case MAIN -> addTasksToBottom();
-      case HIDDEN -> {
-      }
-    }
-
-    currentTaskManagerLocation = loc;
   }
 }
