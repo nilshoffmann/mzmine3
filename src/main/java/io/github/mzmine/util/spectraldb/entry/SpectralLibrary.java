@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2022 The MZmine Development Team
+ * Copyright (c) 2004-2023 The MZmine Development Team
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -31,8 +31,10 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.stream.Stream;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableMap;
 import org.jetbrains.annotations.NotNull;
@@ -67,7 +69,16 @@ public class SpectralLibrary {
 
   @NotNull
   public List<SpectralLibraryEntry> getEntries() {
-    return entries;
+    return Collections.unmodifiableList(entries);
+  }
+
+  public void addEntry(SpectralLibraryEntry entry) {
+    entry.setLibrary(this);
+    entries.add(entry);
+  }
+
+  public void addEntries(Collection<SpectralLibraryEntry> entries) {
+    entries.forEach(this::addEntry);
   }
 
   @NotNull
@@ -115,5 +126,13 @@ public class SpectralLibrary {
    */
   public boolean equalSources(SpectralLibrary lib) {
     return lib != null && lib.getPath().equals(this.getPath());
+  }
+
+  public int getNumEntries() {
+    return getEntries().size();
+  }
+
+  public Stream<SpectralLibraryEntry> stream() {
+    return getEntries().stream();
   }
 }

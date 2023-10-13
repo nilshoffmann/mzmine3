@@ -303,6 +303,24 @@ public class MZmineProjectImpl implements MZmineProject {
     }
   }
 
+  @Override
+  public @Nullable RawDataFile getDataFileByName(@Nullable String name) {
+    if (name == null) {
+      return null;
+    }
+    try {
+      rawLock.readLock().lock();
+      for (final RawDataFile raw : rawDataFiles) {
+        if (name.equalsIgnoreCase(raw.getName())) {
+          return raw;
+        }
+      }
+      return null;
+    } finally {
+      rawLock.readLock().unlock();
+    }
+  }
+
 
   @Override
   public void removeFeatureLists(@NotNull List<FeatureList> featureLists) {
@@ -484,26 +502,6 @@ public class MZmineProjectImpl implements MZmineProject {
       return name;
     } finally {
       featureLock.writeLock().unlock();
-    }
-  }
-
-  @Override
-  public String setUniqueDataFileName(RawDataFile raw, String name) {
-    try {
-      rawLock.writeLock().lock();
-
-      final List<String> names = rawDataFiles.stream().map(RawDataFile::getName).toList();
-      // make path safe
-      name = FileAndPathUtil.safePathEncode(name);
-      // handle duplicates
-      name = names.contains(name) ? MZmineProjectImpl.getUniqueName(name, names) : name;
-
-      // set the new name and notify listeners
-      raw.setNameNoChecks(name);
-
-      return name;
-    } finally {
-      rawLock.writeLock().unlock();
     }
   }
 

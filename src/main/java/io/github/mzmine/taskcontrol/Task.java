@@ -26,29 +26,55 @@
 package io.github.mzmine.taskcontrol;
 
 /**
- * 
  *
  */
 public interface Task extends Runnable {
 
-  public String getTaskDescription();
+  String getTaskDescription();
 
-  public double getFinishedPercentage();
+  double getFinishedPercentage();
 
-  public TaskStatus getStatus();
+  TaskStatus getStatus();
 
-  public String getErrorMessage();
+
+  /**
+   * Convenience method for determining if this task has been canceled. Also returns true if the
+   * task encountered an error.
+   *
+   * @return true if this task has been canceled or stopped due to an error
+   */
+  default boolean isCanceled() {
+    TaskStatus status = getStatus();
+    return (status == TaskStatus.CANCELED) || (status == TaskStatus.ERROR);
+  }
+
+  /**
+   * Convenience method for determining if this task has been completed
+   *
+   * @return true if this task is finished
+   */
+  default boolean isFinished() {
+    TaskStatus status = getStatus();
+    return status == TaskStatus.FINISHED;
+  }
+
+  String getErrorMessage();
 
   /**
    * The standard TaskPriority assign to this task
-   * 
+   *
    * @return
    */
-  public TaskPriority getTaskPriority();
+  TaskPriority getTaskPriority();
 
   /**
    * Cancel a running task by user request.
    */
-  public void cancel();
+  void cancel();
 
+  void addTaskStatusListener(TaskStatusListener list);
+
+  boolean removeTaskStatusListener(TaskStatusListener list);
+
+  void clearTaskStatusListener();
 }

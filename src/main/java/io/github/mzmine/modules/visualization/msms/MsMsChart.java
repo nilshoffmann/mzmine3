@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2022 The MZmine Development Team
+ * Copyright (c) 2004-2023 The MZmine Development Team
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -37,7 +37,7 @@ import io.github.mzmine.parameters.ParameterSet;
 import io.github.mzmine.parameters.parametertypes.selectors.RawDataFilesSelectionType;
 import io.github.mzmine.taskcontrol.TaskStatus;
 import java.awt.Color;
-import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.property.Property;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.input.MouseButton;
 import org.jetbrains.annotations.Nullable;
@@ -45,13 +45,13 @@ import org.jfree.chart.util.SortOrder;
 
 public class MsMsChart extends SimpleXYZScatterPlot<MsMsDataProvider> {
 
-  private MsMsDataProvider dataProvider;
-  private ColoredXYZDataset dataset;
-  private ColoredXYZDotRenderer renderer;
+  private final MsMsDataProvider dataProvider;
+  private final ColoredXYZDataset dataset;
+  private final ColoredXYZDotRenderer renderer;
   private SortOrder zOrder;
 
   public MsMsChart(ParameterSet parameters) {
-    super("MS/MS visualizer");
+    super("");
 
     MsMsXYAxisType xAxisType = parameters.getParameter(MsMsParameters.xAxisType).getValue();
     MsMsXYAxisType yAxisType = parameters.getParameter(MsMsParameters.yAxisType).getValue();
@@ -83,11 +83,12 @@ public class MsMsChart extends SimpleXYZScatterPlot<MsMsDataProvider> {
         return;
       }
 
-      MsMsDataPoint clickedDataPoint = dataProvider.getDataPoint(getCursorPosition().getValueIndex());
+      MsMsDataPoint clickedDataPoint = dataProvider.getDataPoint(
+          getCursorPosition().getValueIndex());
 
       // Run spectrum module
-      ParameterSet spectrumParameters =
-          MZmineCore.getConfiguration().getModuleParameters(SpectraVisualizerModule.class);
+      ParameterSet spectrumParameters = MZmineCore.getConfiguration()
+          .getModuleParameters(SpectraVisualizerModule.class);
       spectrumParameters.getParameter(SpectraVisualizerParameters.dataFiles)
           .setValue(RawDataFilesSelectionType.SPECIFIC_FILES, dataFiles);
       spectrumParameters.getParameter(SpectraVisualizerParameters.scanNumber)
@@ -97,6 +98,9 @@ public class MsMsChart extends SimpleXYZScatterPlot<MsMsDataProvider> {
 
     // Do not show legend
     setLegendCanvas(new Canvas());
+
+    // apply the theme here, let's see how that works
+    MZmineCore.getConfiguration().getDefaultChartTheme().apply(chart);
   }
 
   public MsMsXYAxisType getXAxisType() {
@@ -146,7 +150,7 @@ public class MsMsChart extends SimpleXYZScatterPlot<MsMsDataProvider> {
     dataset.fireDatasetChanged();
   }
 
-  public SimpleObjectProperty<TaskStatus> datasetStatusProperty() {
+  public Property<TaskStatus> datasetStatusProperty() {
     return dataset.statusProperty();
   }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2022 The MZmine Development Team
+ * Copyright (c) 2004-2023 The MZmine Development Team
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -31,6 +31,7 @@ import io.github.mzmine.datamodel.features.FeatureListRow;
 import io.github.mzmine.datamodel.features.ModularDataModel;
 import io.github.mzmine.datamodel.features.ModularFeature;
 import io.github.mzmine.datamodel.features.ModularFeatureList;
+import io.github.mzmine.datamodel.features.SimpleFeatureListAppliedMethod;
 import io.github.mzmine.datamodel.features.types.DataType;
 import io.github.mzmine.datamodel.features.types.LinkedGraphicalType;
 import io.github.mzmine.datamodel.features.types.modifiers.NoTextColumn;
@@ -76,6 +77,7 @@ public class CSVExportModularTask extends AbstractTask implements ProcessedItems
   private final String headerSeparator = ":";
   private final FeatureListRowsFilter rowFilter;
   private final boolean removeEmptyCols;
+  private final ParameterSet parameters;
   // track number of exported items
   private final AtomicInteger exportedRows = new AtomicInteger(0);
   private int processedTypes = 0, totalTypes = 0;
@@ -89,6 +91,7 @@ public class CSVExportModularTask extends AbstractTask implements ProcessedItems
     idSeparator = parameters.getParameter(CSVExportModularParameters.idSeparator).getValue();
     this.rowFilter = parameters.getParameter(CSVExportModularParameters.filter).getValue();
     removeEmptyCols = parameters.getValue(CSVExportModularParameters.omitEmptyColumns);
+    this.parameters = parameters;
   }
 
   /**
@@ -112,6 +115,7 @@ public class CSVExportModularTask extends AbstractTask implements ProcessedItems
     this.idSeparator = idSeparator;
     this.rowFilter = rowFilter;
     this.removeEmptyCols = removeEmptyCols;
+    parameters = null;
   }
 
   @Override
@@ -140,6 +144,15 @@ public class CSVExportModularTask extends AbstractTask implements ProcessedItems
     // Shall export several files?
     String plNamePattern = "{}";
     boolean substitute = fileName.getPath().contains(plNamePattern);
+
+    if (!substitute && featureLists.length > 1) {
+      setErrorMessage("""
+          Cannot export multiple feature lists to the same CSV file. Please use "{}" pattern in filename.\
+          This will be replaced with the feature list name to generate one file per feature list.
+          """);
+      setStatus(TaskStatus.ERROR);
+      return;
+    }
 
     // Total number of rows
     for (ModularFeatureList featureList : featureLists) {
@@ -185,6 +198,13 @@ public class CSVExportModularTask extends AbstractTask implements ProcessedItems
       }
 
       checkConcurrentModification(featureList, numRows, numFeatures, numMS2);
+
+      if (parameters != null) { // if this is null, the external constructor was used.
+        featureList.getAppliedMethods().add(
+            new SimpleFeatureListAppliedMethod(CSVExportModularModule.class, parameters,
+                getModuleCallDate()));
+      }
+
       // If feature list substitution pattern wasn't found,
       // treat one feature list only
       if (!substitute) {
@@ -326,7 +346,7 @@ public class CSVExportModularTask extends AbstractTask implements ProcessedItems
     if (value == null) {
       value = ((DataType) subColFactory).getDefaultValue();
     }
-    return csvEscape(subColFactory.getFormattedSubColValue(col, value));
+    return csvEscape(subColFactory.getFormattedSubColExportValue(col, value));
   }
 
   private String getFormattedValue(@Nullable ModularDataModel data, DataType type) {
@@ -335,7 +355,7 @@ public class CSVExportModularTask extends AbstractTask implements ProcessedItems
       value = type.getDefaultValue();
     }
     try {
-      return csvEscape(type.getFormattedString(value));
+      return csvEscape(type.getFormattedExportString(value));
     } catch (Exception e) {
       logger.log(Level.FINEST,
           "Cannot format value of type " + type.getClass().getName() + " value: " + value, e);

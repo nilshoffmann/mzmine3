@@ -69,16 +69,14 @@ import io.github.mzmine.util.SortingDirection;
 import io.github.mzmine.util.SortingProperty;
 import io.github.mzmine.util.scans.FragmentScanSorter;
 import io.github.mzmine.util.spectraldb.entry.SpectralDBAnnotation;
-import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 import javafx.collections.FXCollections;
@@ -219,30 +217,6 @@ public class ModularFeatureListRow implements FeatureListRow {
   }
 
   @Override
-  public <T> boolean set(Class<? extends DataType<T>> tclass, T value) {
-    // type in defined columns?
-    if (!getTypes().containsKey(tclass)) {
-      try {
-        DataType newType = tclass.getConstructor().newInstance();
-        ModularFeatureList flist = getFeatureList();
-        flist.addRowType(newType);
-      } catch (NullPointerException | InstantiationException | NoSuchMethodException |
-               InvocationTargetException | IllegalAccessException e) {
-        e.printStackTrace();
-        return false;
-      }
-    }
-    // access default method
-    boolean changed = FeatureListRow.super.set(tclass, value);
-
-    //
-    if (changed && tclass.equals(FeaturesType.class)) {
-      // TODO new features set -> use bindings?
-    }
-    return changed;
-  }
-
-  @Override
   public Stream<ModularFeature> streamFeatures() {
     return this.getFeatures().stream().map(ModularFeature.class::cast).filter(Objects::nonNull);
   }
@@ -264,7 +238,8 @@ public class ModularFeatureListRow implements FeatureListRow {
     // TODO remove features object - not always do we have features
     // FeaturesType creates an empty ListProperty for that
     // return FXCollections.observableArrayList(get(FeaturesType.class).values());
-    return new ArrayList<>(features.values());
+    return features.values().stream().filter(f -> f.getFeatureStatus() != FeatureStatus.UNKNOWN)
+        .toList();
   }
 
   @Override
@@ -276,7 +251,7 @@ public class ModularFeatureListRow implements FeatureListRow {
     }
     if (!flist.equals(feature.getFeatureList())) {
       throw new IllegalArgumentException("Cannot add feature with different feature list to this "
-          + "row. Create feature with the correct feature list as an argument.");
+                                         + "row. Create feature with the correct feature list as an argument.");
     }
     if (raw == null) {
       throw new IllegalArgumentException("Raw file cannot be null");
@@ -501,6 +476,7 @@ public class ModularFeatureListRow implements FeatureListRow {
     set(ManualAnnotationType.class, manual);
   }
 
+  @Override
   @Nullable
   public ManualAnnotation getManualAnnotation() {
     return get(ManualAnnotationType.class);
@@ -720,17 +696,10 @@ public class ModularFeatureListRow implements FeatureListRow {
   @Nullable
   @Override
   public IsotopePattern getBestIsotopePattern() {
-    ModularFeature[] features = getFilesFeatures().values().toArray(new ModularFeature[0]);
-    Arrays.sort(features, new FeatureSorter(SortingProperty.Height, SortingDirection.Descending));
-
-    for (ModularFeature feature : features) {
-      IsotopePattern ip = feature.getIsotopePattern();
-      if (ip != null) {
-        return ip;
-      }
-    }
-
-    return null;
+    return streamFeatures().filter(f -> f != null && f.getIsotopePattern() != null
+                                        && f.getFeatureStatus() != FeatureStatus.UNKNOWN)
+        .max(Comparator.comparingDouble(ModularFeature::getHeight))
+        .map(ModularFeature::getIsotopePattern).orElse(null);
   }
 
 
@@ -750,26 +719,7 @@ public class ModularFeatureListRow implements FeatureListRow {
 
   @Override
   public Object getPreferredAnnotation() {
-    // manual, spec, lipid, compound, formula
-    ManualAnnotation annotation = getManualAnnotation();
-    if (annotation != null && annotation.getCompoundName() != null && !annotation.getCompoundName()
-        .isBlank()) {
-      return annotation;
-    }
-
-    Optional<?> first = getSpectralLibraryMatches().stream().findFirst();
-    if (first.isPresent()) {
-      return first.get();
-    }
-    first = getLipidMatches().stream().findFirst();
-    if (first.isPresent()) {
-      return first.get();
-    }
-    first = getCompoundAnnotations().stream().findFirst();
-    if (first.isPresent()) {
-      return first.get();
-    }
-    return getFormulas().stream().findFirst().orElse(null);
+    return streamAllFeatureAnnotations().findFirst().orElse(null);
   }
 
   @Override
@@ -779,11 +729,11 @@ public class ModularFeatureListRow implements FeatureListRow {
       case FeatureAnnotation ann -> ann.getCompoundName();
       case ManualAnnotation ann -> ann.getCompoundName();
       case MolecularFormulaIdentity ann -> ann.getFormulaAsString();
+      case MatchedLipid lipid -> lipid.getLipidAnnotation().getAnnotation();
       case null -> null;
       default -> throw new IllegalStateException("Unexpected value: " + annotation);
     };
   }
-
 
   @Override
   public List<ResultFormula> getFormulas() {

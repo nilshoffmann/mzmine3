@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2022 The MZmine Development Team
+ * Copyright (c) 2004-2023 The MZmine Development Team
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -55,7 +55,7 @@ import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
-import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.property.Property;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jfree.chart.renderer.PaintScale;
@@ -183,7 +183,7 @@ public class RawImageProvider implements PlotXYZDataProvider {
   }
 
   @Override
-  public void computeValues(SimpleObjectProperty<TaskStatus> status) {
+  public void computeValues(Property<TaskStatus> status) {
     series = extractIonTimeSeries();
 
     if (normalize != null) {
@@ -196,7 +196,6 @@ public class RawImageProvider implements PlotXYZDataProvider {
     paintScale = MZmineCore.getConfiguration().getDefaultPaintScalePalette()
         .toPaintScale(PaintScaleTransform.LINEAR, Range.closed(quantiles[0], quantiles[1]));
   }
-
 
   @NotNull
   private SimpleIonTimeSeries extractIonTimeSeries() {
@@ -264,7 +263,7 @@ public class RawImageProvider implements PlotXYZDataProvider {
 
     logger.info("ImageViewer: Start data point extraction");
     MobilityScanDataAccess scanAccess = EfficientDataAccess.of(imsRaw,
-        MobilityScanDataType.CENTROID, scanSelection);
+        MobilityScanDataType.MASS_LIST, scanSelection);
     int numberOfFrames = scanAccess.getNumberOfScans();
     DoubleArrayList mzs = new DoubleArrayList(numberOfFrames);
     DoubleArrayList intensities = new DoubleArrayList(numberOfFrames);
@@ -314,6 +313,4 @@ public class RawImageProvider implements PlotXYZDataProvider {
     finishedPercentage = 1;
     return new SimpleIonTimeSeries(null, mzs.toDoubleArray(), intensities.toDoubleArray(), scans);
   }
-
-
 }
