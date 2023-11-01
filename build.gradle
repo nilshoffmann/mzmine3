@@ -41,6 +41,8 @@ plugins {
     // versioning now in version.properties file
     // https://github.com/ethauvin/semver-gradle
     id "net.thauvin.erik.gradle.semver" version "1.0.4"
+    id "java-library"
+    id "maven-publish"
 }
 
 // save version to main resources
@@ -130,7 +132,8 @@ ext {
     poiVersion = '5.0.0'
     batikVersion = '1.14'
     controlsfxVersion = '11.1.1'
-    jmzTabmVersion = "1.0.6"
+    jmzTabmVersion = '1.0.6'
+    jgoslinVersion = '2.1.0'
     jnaVersion = '5.12.1'
     junitversion = '5.9.1'
     mockitoversion = '5.2.0'
@@ -239,6 +242,7 @@ dependencies {
     implementation "com.github.oshi:oshi-core:4.5.2"
     // because the version that is pulled by SIRIUS crashes
     implementation "de.isas.mztab:jmztabm-io:$jmzTabmVersion"
+    implementation "org.lifs-tools:jgoslin-parsers:$jgoslinVersion"
     implementation 'net.java.dev.jna:jna:$jnaVersion'
     //implementation 'com.github.robinschmid:jimzMLParser:mzmine_local_obo-SNAPSHOT'
     //implementation 'com.github.alanrace:jimzMLParser:1.0.6'
@@ -570,3 +574,18 @@ task copyTestResources(type: Copy) {
     into "${buildDir}/classes/test"
 }
 processTestResources.dependsOn copyTestResources
+
+publishing {
+    publications {
+        myLibrary(MavenPublication) {
+            from components.java
+        }
+    }
+
+    repositories {
+        maven {
+            name = 'myRepo'
+            url = layout.buildDirectory.dir("repo")
+        }
+    }
+}
